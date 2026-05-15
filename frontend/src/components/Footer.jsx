@@ -27,7 +27,7 @@ export default function Footer() {
               lineHeight: '1.7',
               maxWidth: '300px'
             }}>
-              Simplify healthcare with AI. Upload reports, track trends, and manage your family's health records in one secure place.
+              Simplify healthcare with AI. Upload reports, track trends, and manage your family's health records — all from your browser, no download needed.
             </p>
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
               {['𝕏', 'ig', 'in', 'fb'].map((icon, i) => (
@@ -43,7 +43,7 @@ export default function Footer() {
 
           {[
             { title: 'Company', links: ['About Us', 'Careers', 'Blog', 'Contact'] },
-            { title: 'Product', links: ['Features', 'Security', 'Business', 'Download'] },
+            { title: 'Product', links: ['Features', 'Security', 'Business', 'Launch App'] },
             { title: 'Legal', links: ['Privacy Policy', 'Terms of Service', 'Cookie Policy'] }
           ].map((col, i) => (
             <div key={i}>

@@ -1,6 +1,7 @@
+import { Link } from 'react-router-dom'
 import FAQ from '../components/FAQ'
 import Testimonials from '../components/Testimonials'
-import DownloadSection from '../components/DownloadSection'
+import GetStartedSection from '../components/DownloadSection'
 import Footer from '../components/Footer'
 
 export default function Home() {
@@ -31,25 +32,7 @@ export default function Home() {
             alignItems: 'center'
           }}>
             <div className="hero-content animate-fade-in">
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'var(--primary-light)',
-                color: 'var(--primary)',
-                border: '1px solid rgba(10,143,108,0.2)',
-                borderRadius: '999px',
-                padding: '6px 16px',
-                fontSize: '13px',
-                fontWeight: '600',
-                marginBottom: '24px'
-              }}>
-                <div style={{
-                  width: '8px', height: '8px', borderRadius: '50%',
-                  background: 'var(--accent)',
-                }}></div>
-                India's #1 AI Health Records App
-              </div>
+
 
               <h1 style={{
                 fontSize: 'clamp(38px, 5vw, 58px)',
@@ -67,21 +50,21 @@ export default function Home() {
                 marginBottom: '32px',
                 maxWidth: '540px'
               }}>
-                Upload your medical reports and get instant AI-powered explanations in simple language, 
+                Upload your medical reports and get instant AI-powered explanations in simple language,
                 track your health trends, and keep your records securely organized.
               </p>
 
               <div style={{ display: 'flex', gap: '14px', marginBottom: '40px' }}>
-                <button className="btn btn-primary">Get Started Free</button>
+                <Link to="/get-started" className="btn btn-primary" style={{ textDecoration: 'none' }}>Get Started Free</Link>
                 <button className="btn btn-secondary">Watch Demo</button>
               </div>
 
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '8px', 
-                fontSize: '12px', 
-                color: 'var(--text-muted)' 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '12px',
+                color: 'var(--text-muted)'
               }}>
                 🏥 Trusted by over 10,000+ patients across India
               </div>
@@ -139,10 +122,10 @@ export default function Home() {
                         <div style={{ fontSize: '13px', fontWeight: '600' }}>{report.name}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{report.date}</div>
                       </div>
-                      <div style={{ 
-                        fontSize: '11px', 
-                        fontWeight: '600', 
-                        padding: '3px 10px', 
+                      <div style={{
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        padding: '3px 10px',
                         borderRadius: '999px',
                         background: report.status === 'Normal' ? '#e6f7f2' : '#fff3e6',
                         color: report.status === 'Normal' ? 'var(--primary)' : '#d97706'
@@ -271,7 +254,7 @@ export default function Home() {
             <div className="animate-fade-in" style={{ order: -1 }}>
               <div style={{ color: '#10b981', fontSize: '11px', fontWeight: '700', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '16px' }}>FAMILY HEALTH MANAGEMENT</div>
               <h3 style={{ fontSize: '32px', marginBottom: '16px', lineHeight: '1.2' }}>Manage Your Entire Family's Health Records</h3>
-              <p style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text)', marginBottom: '16px' }}>One App for the Whole Family's Health Journey</p>
+              <p style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text)', marginBottom: '16px' }}>One Platform for the Whole Family's Health Journey</p>
               <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginBottom: '24px', lineHeight: '1.7' }}>
                 Add family members and keep everyone's medical records organized in one secure place. Perfect for managing children's health, elderly parents, or spouse's medical history.
               </p>
@@ -375,11 +358,11 @@ export default function Home() {
                 padding: '40px',
                 transition: 'var(--transition)'
               }} className="security-card">
-                <div style={{ 
-                  width: '48px', height: '48px', borderRadius: '12px', 
-                  background: 'rgba(0,196,140,0.1)', display: 'flex', 
-                  alignItems: 'center', justify_content: 'center', 
-                  fontSize: '24px', marginBottom: '24px' 
+                <div style={{
+                  width: '48px', height: '48px', borderRadius: '12px',
+                  background: 'rgba(0,196,140,0.1)', display: 'flex',
+                  alignItems: 'center', justify_content: 'center',
+                  fontSize: '24px', marginBottom: '24px'
                 }}>{card.icon}</div>
                 <h3 style={{ fontSize: '20px', color: 'white', marginBottom: '16px', fontWeight: '600' }}>{card.title}</h3>
                 <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px', lineHeight: '1.7' }}>{card.desc}</p>
@@ -388,10 +371,10 @@ export default function Home() {
           </div>
 
           {/* Compliance Badges Row */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            gap: '20px', 
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '20px',
             flexWrap: 'wrap',
             paddingTop: '40px',
             borderTop: '1px solid rgba(255,255,255,0.05)'
@@ -428,7 +411,7 @@ export default function Home() {
 
       {/* <Testimonials /> */}
       <FAQ />
-      <DownloadSection />
+      <GetStartedSection />
       <Footer />
     </div>
   )

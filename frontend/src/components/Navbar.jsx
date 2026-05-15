@@ -47,7 +47,7 @@ export default function Navbar() {
             justifyContent: 'center'
           }}>
             <svg viewBox="0 0 24 24" style={{ width: '22px', height: '22px', fill: 'white' }}>
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
             </svg>
           </div>
           <span style={{
@@ -60,7 +60,7 @@ export default function Navbar() {
             HealthSync <span style={{ color: 'var(--primary)', fontFamily: "'DM Sans', sans-serif" }}>AI</span>
           </span>
         </Link>
-        
+
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <ul style={{ display: 'flex', listStyle: 'none', gap: '4px', marginRight: '20px' }}>
             <li><a href="/#features" className="nav-link" onClick={(e) => {
@@ -97,11 +97,11 @@ export default function Navbar() {
                 ].map((item, i) => (
                   <Link key={i} to={item.path} className="dropdown-item">
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                      <div style={{ 
-                        width: '32px', height: '32px', borderRadius: '8px', 
-                        background: 'var(--bg2)', display: 'flex', 
-                        alignItems: 'center', justifyContent: 'center', 
-                        fontSize: '16px', color: 'var(--primary)' 
+                      <div style={{
+                        width: '32px', height: '32px', borderRadius: '8px',
+                        background: 'var(--bg2)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        fontSize: '16px', color: 'var(--primary)'
                       }}>{item.icon}</div>
                       <div>
                         <strong>{item.title}</strong>
@@ -114,11 +114,11 @@ export default function Navbar() {
             </li>
           </ul>
           <Link to="/get-started" className="btn btn-primary" style={{ padding: '8px 20px', fontSize: '14px' }}>
-            Get Started Free
+            Create Account
           </Link>
         </div>
       </div>
-      
+
       <style>{`
         .nav-link {
           color: var(--text);
