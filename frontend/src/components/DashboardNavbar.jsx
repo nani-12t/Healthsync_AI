@@ -96,7 +96,7 @@ export default function DashboardNavbar() {
           }}>
             🔔
           </button>
-          <div style={{
+          <Link to="/dashboard/profile" style={{
             width: '38px',
             height: '38px',
             borderRadius: '50%',
@@ -106,10 +106,11 @@ export default function DashboardNavbar() {
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: '700',
-            fontSize: '15px'
+            fontSize: '15px',
+            textDecoration: 'none'
           }}>
             U
-          </div>
+          </Link>
         </div>
       </div>
     </nav>

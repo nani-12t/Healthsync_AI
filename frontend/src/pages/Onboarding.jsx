@@ -103,7 +103,7 @@ export default function Onboarding() {
 
         {/* Upload Button */}
         <button 
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate('/dashboard/reports', { state: { openAddDocModal: true } })}
           style={{
           width: '100%',
           background: 'white',

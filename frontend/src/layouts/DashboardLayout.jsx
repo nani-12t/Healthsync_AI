@@ -3,12 +3,10 @@ import DashboardNavbar from '../components/DashboardNavbar'
 
 export default function DashboardLayout() {
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       <DashboardNavbar />
-      <main style={{ padding: '40px 0' }}>
-        <div className="container">
-          <Outlet />
-        </div>
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Outlet />
       </main>
     </div>
   )
