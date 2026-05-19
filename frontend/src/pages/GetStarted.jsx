@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 export default function GetStarted() {
   const [tab, setTab] = useState('whatsapp') // 'whatsapp' | 'email'
@@ -8,9 +8,14 @@ export default function GetStarted() {
   const [name, setName] = useState('')
   const [sending, setSending] = useState(false)
 
+  const navigate = useNavigate()
+
   const handleContinue = () => {
     setSending(true)
-    setTimeout(() => setSending(false), 1800)
+    setTimeout(() => {
+      setSending(false)
+      navigate('/onboarding')
+    }, 1800)
   }
 
   return (
