@@ -10,6 +10,43 @@ export default function Reports() {
   const [selectedType, setSelectedType] = useState(null)
   const [selectedSource, setSelectedSource] = useState(null)
 
+  // Auth & user info state
+  const [user, setUser] = useState(() => {
+    const stored = localStorage.getItem('user')
+    return stored ? JSON.parse(stored) : null
+  })
+
+  // Dynamic profiles & reports states
+  const [reports, setReports] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [familyMembers, setFamilyMembers] = useState([])
+  const [selectedProfile, setSelectedProfile] = useState({ id: 'me', name: '' })
+  
+  // To upload for a profile (defaults to selectedProfile, but can be changed during upload flow)
+  const [uploadTargetProfile, setUploadTargetProfile] = useState({ id: 'me', name: '' })
+
+  // Document upload state
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+
+  // Add Family Member form state
+  const [familyFirstName, setFamilyFirstName] = useState('')
+  const [familyLastName, setFamilyLastName] = useState('')
+  const [familyDob, setFamilyDob] = useState('')
+  const [familyRelationship, setFamilyRelationship] = useState('')
+  const [familyGender, setFamilyGender] = useState('')
+  const [familyBloodGroup, setFamilyBloodGroup] = useState('')
+  const [savingFamily, setSavingFamily] = useState(false)
+  const [familyError, setFamilyError] = useState('')
+
+  useEffect(() => {
+    if (user && !selectedProfile.name) {
+      const name = user.full_name || user.email || 'Me'
+      setSelectedProfile({ id: 'me', name })
+      setUploadTargetProfile({ id: 'me', name })
+    }
+  }, [user])
+
   useEffect(() => {
     if (location.state?.openAddDocModal) {
       setModalState('add_doc')
@@ -30,9 +67,147 @@ export default function Reports() {
     )}
   ]
 
+  const fetchFamilyMembers = async () => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    try {
+      const res = await fetch('http://localhost:5000/api/family-members', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setFamilyMembers(data)
+      }
+    } catch (err) {
+      console.error('Error fetching family members:', err)
+    }
+  }
+
+  const fetchReports = async (profileId) => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    setLoading(true)
+    try {
+      const url = profileId === 'me' 
+        ? 'http://localhost:5000/api/reports' 
+        : `http://localhost:5000/api/family-reports/${profileId}`
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setReports(data)
+      }
+    } catch (err) {
+      console.error('Error fetching reports:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchFamilyMembers()
+  }, [])
+
+  useEffect(() => {
+    if (selectedProfile.name) {
+      fetchReports(selectedProfile.id)
+    }
+  }, [selectedProfile])
+
+  const handleSaveFamilyMember = async () => {
+    if (!familyFirstName.trim() || !familyLastName.trim() || !familyDob || !familyRelationship || !familyGender) {
+      setFamilyError('Please fill in all required fields marked with *')
+      return
+    }
+    setFamilyError('')
+    setSavingFamily(true)
+    const token = localStorage.getItem('token')
+    try {
+      const res = await fetch('http://localhost:5000/api/family-members', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          first_name: familyFirstName.trim(),
+          last_name: familyLastName.trim(),
+          date_of_birth: familyDob,
+          relationship: familyRelationship,
+          gender: familyGender,
+          blood_group: familyBloodGroup.trim()
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        await fetchFamilyMembers()
+        setFamilyFirstName('')
+        setFamilyLastName('')
+        setFamilyDob('')
+        setFamilyRelationship('')
+        setFamilyGender('')
+        setFamilyBloodGroup('')
+        const newMember = { id: data._id, name: data.full_name }
+        setUploadTargetProfile(newMember)
+        setActiveDrawer('family')
+      } else {
+        setFamilyError(data.error || 'Failed to save family member')
+      }
+    } catch (err) {
+      console.error(err)
+      setFamilyError('Failed to connect to server')
+    } finally {
+      setSavingFamily(false)
+    }
+  }
+
+  const handleUploadDocument = async () => {
+    if (!selectedType || !selectedSource) return
+    setIsUploading(true)
+    setUploadError('')
+    const token = localStorage.getItem('token')
+    const file_name = `${selectedType.toLowerCase().replace(/\s+/g, '_')}_${Date.now().toString().slice(-4)}.pdf`
+    
+    try {
+      const isMe = uploadTargetProfile.id === 'me'
+      const url = isMe ? 'http://localhost:5000/api/reports' : 'http://localhost:5000/api/family-reports'
+      const body = isMe 
+        ? { document_type: selectedType, source: selectedSource, file_name }
+        : { family_member_id: uploadTargetProfile.id, document_type: selectedType, source: selectedSource, file_name }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      })
+      const data = await res.json()
+      if (res.ok) {
+        if (selectedProfile.id === uploadTargetProfile.id) {
+          fetchReports(selectedProfile.id)
+        } else {
+          setSelectedProfile(uploadTargetProfile)
+        }
+        setModalState('closed')
+        resetUploadState()
+      } else {
+        setUploadError(data.error || 'Failed to upload report')
+      }
+    } catch (err) {
+      console.error(err)
+      setUploadError('Failed to connect to server')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
   const resetUploadState = () => {
     setSelectedType(null)
     setSelectedSource(null)
+    setUploadTargetProfile(selectedProfile)
   }
 
   const selectedDocObj = selectedType ? docTypes.find(d => d.id === selectedType) : null
@@ -50,21 +225,16 @@ export default function Reports() {
       position: 'relative'
     }}>
       {/* Header Section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px', marginTop: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', marginTop: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '900', margin: '0 0 8px 0', color: '#FFFFFF', letterSpacing: '1px' }}>My Reports</h1>
+          <h1 style={{ fontSize: '28px', fontWeight: '900', margin: '0 0 8px 0', color: '#FFFFFF', letterSpacing: '1px' }}>
+            Reports for {selectedProfile.name}
+          </h1>
           <div style={{ fontSize: '15px', color: '#A7F3D0', fontWeight: '500' }}>
-            No reports • <span style={{ color: '#10B981', fontWeight: '700' }}>Updated 5:16 PM</span>
+            {reports.length} {reports.length === 1 ? 'report' : 'reports'} • <span style={{ color: '#10B981', fontWeight: '700' }}>Live Synced</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '16px' }}>
-          <button style={{
-            width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            color: '#10B981', backdropFilter: 'blur(8px)'
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          </button>
           <button onClick={() => { resetUploadState(); setModalState('add_doc') }} style={{
             background: 'linear-gradient(90deg, #10B981, #059669)', color: 'white', border: 'none', borderRadius: '12px',
             padding: '0 24px', fontSize: '15px', fontWeight: '800', cursor: 'pointer',
@@ -75,37 +245,128 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Empty State Layout */}
+      {/* Profiles Selector Bar */}
       <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        textAlign: 'center', marginTop: '-60px'
+        display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '20px',
+        borderBottom: '1px solid rgba(16, 185, 129, 0.2)', marginBottom: '30px', scrollbarWidth: 'none',
+        alignItems: 'center'
       }}>
-        <div style={{
-          width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '32px',
-          boxShadow: '0 0 40px rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.2)'
+        {/* Me Profile */}
+        <button onClick={() => setSelectedProfile({ id: 'me', name: user?.full_name || 'Me' })} style={{
+          padding: '10px 24px',
+          borderRadius: '24px',
+          background: selectedProfile.id === 'me' ? '#10B981' : 'rgba(16, 185, 129, 0.05)',
+          color: selectedProfile.id === 'me' ? '#FFFFFF' : '#A7F3D0',
+          border: selectedProfile.id === 'me' ? 'none' : '1px solid rgba(16, 185, 129, 0.2)',
+          fontSize: '15px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
+          transition: 'all 0.2s', backdropFilter: 'blur(10px)', boxShadow: selectedProfile.id === 'me' ? '0 4px 12px rgba(16,185,129,0.3)' : 'none'
         }}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <path d="M14 2v6h6"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-            <polyline points="10 9 9 9 8 9"/>
-          </svg>
-        </div>
-        <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#FFFFFF', margin: '0 0 16px 0', letterSpacing: '0.5px' }}>
-          No reports found
-        </h2>
-        <p style={{ color: '#D1FAE5', fontSize: '16px', margin: '0 0 36px 0', fontWeight: '500' }}>
-          No reports uploaded for Aravind Nani yet
-        </p>
-        <button onClick={() => { resetUploadState(); setModalState('add_doc') }} style={{
-          background: 'linear-gradient(90deg, #10B981, #059669)', color: 'white', border: 'none', borderRadius: '14px',
-          padding: '16px 36px', fontSize: '16px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 8px 20px rgba(16,185,129,0.3)'
+          👤 Me
+        </button>
+
+        {/* Family Member Profiles */}
+        {familyMembers.map(member => (
+          <button key={member._id} onClick={() => setSelectedProfile({ id: member._id, name: member.full_name })} style={{
+            padding: '10px 24px',
+            borderRadius: '24px',
+            background: selectedProfile.id === member._id ? '#10B981' : 'rgba(16, 185, 129, 0.05)',
+            color: selectedProfile.id === member._id ? '#FFFFFF' : '#A7F3D0',
+            border: selectedProfile.id === member._id ? 'none' : '1px solid rgba(16, 185, 129, 0.2)',
+            fontSize: '15px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap',
+            transition: 'all 0.2s', backdropFilter: 'blur(10px)', boxShadow: selectedProfile.id === member._id ? '0 4px 12px rgba(16,185,129,0.3)' : 'none'
+          }}>
+            👥 {member.full_name}
+          </button>
+        ))}
+
+        {/* Add Family Member Inline Switcher Button */}
+        <button onClick={() => { resetUploadState(); setModalState('add_doc'); setActiveDrawer('add_family'); }} style={{
+          padding: '10px 20px',
+          borderRadius: '24px',
+          background: 'rgba(255, 255, 255, 0.05)',
+          color: '#34D399',
+          border: '1px dashed rgba(16, 185, 129, 0.4)',
+          fontSize: '14px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+          transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px'
         }}>
-          Upload Report
+          <span>+</span> Add Member
         </button>
       </div>
+
+      {loading ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
+          <span style={{
+            width: '40px', height: '40px', borderRadius: '50%',
+            border: '4px solid rgba(16,185,129,0.2)',
+            borderTopColor: '#10B981',
+            animation: 'spin 1s linear infinite'
+          }} />
+        </div>
+      ) : reports.length === 0 ? (
+        /* Empty State Layout */
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          textAlign: 'center', padding: '60px 20px'
+        }}>
+          <div style={{
+            width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.1)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '32px',
+            boxShadow: '0 0 40px rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.2)'
+          }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <path d="M14 2v6h6"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+          </div>
+          <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#FFFFFF', margin: '0 0 16px 0', letterSpacing: '0.5px' }}>
+            No reports found
+          </h2>
+          <p style={{ color: '#D1FAE5', fontSize: '16px', margin: '0 0 36px 0', fontWeight: '500' }}>
+            No reports uploaded for {selectedProfile.name} yet
+          </p>
+          <button onClick={() => { resetUploadState(); setModalState('add_doc') }} style={{
+            background: 'linear-gradient(90deg, #10B981, #059669)', color: 'white', border: 'none', borderRadius: '14px',
+            padding: '16px 36px', fontSize: '16px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 8px 20px rgba(16,185,129,0.3)'
+          }}>
+            Upload Report
+          </button>
+        </div>
+      ) : (
+        /* List View */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '40px' }}>
+          {reports.map(report => (
+            <div key={report._id} style={{
+              background: 'rgba(16, 185, 129, 0.03)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+              borderRadius: '20px',
+              padding: '20px 24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+                <span style={{ fontSize: '32px' }}>📄</span>
+                <div>
+                  <div style={{ fontWeight: '800', fontSize: '18px', color: '#FFFFFF' }}>{report.document_type}</div>
+                  <div style={{ fontSize: '14px', color: '#A7F3D0', marginTop: '4px', fontWeight: '500' }}>
+                    Source: {report.source} • Uploaded {new Date(report.uploaded_at).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ background: 'rgba(16,185,129,0.1)', color: '#10B981', padding: '6px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: '700' }}>
+                  Analyzed
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* BASE MODAL: Add Medical Document */}
       {modalState === 'add_doc' && (
@@ -131,9 +392,11 @@ export default function Reports() {
               <div style={{ fontSize: '15px', color: '#A7F3D0', fontWeight: '700', marginBottom: '16px' }}>Upload For</div>
               <div onClick={() => setActiveDrawer('family')} style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '16px', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backdropFilter: 'blur(10px)', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '20px' }}>A</div>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '20px' }}>
+                    {uploadTargetProfile.name.charAt(0).toUpperCase()}
+                  </div>
                   <div>
-                    <div style={{ fontWeight: '800', fontSize: '18px', color: '#FFFFFF', marginBottom: '6px' }}>Aravind Nani</div>
+                    <div style={{ fontWeight: '800', fontSize: '18px', color: '#FFFFFF', marginBottom: '6px' }}>{uploadTargetProfile.name}</div>
                     <div style={{ fontSize: '14px', color: '#10B981', fontWeight: '600' }}>Tap to add or change family members</div>
                   </div>
                 </div>
@@ -196,20 +459,30 @@ export default function Reports() {
             </div>
 
             <div style={{ marginTop: 'auto' }}>
-              <button onClick={() => {
-                if (selectedType && !selectedSource) {
-                  setActiveDrawer('select_source')
-                } else if (selectedType && selectedSource) {
-                  // Handle actual upload
-                } else {
-                  setActiveDrawer('select_type')
-                }
-              }} style={{
-                width: '100%', background: 'linear-gradient(90deg, #10B981, #059669)', color: 'white',
-                border: 'none', borderRadius: '14px', padding: '18px', fontSize: '18px', fontWeight: '800', marginBottom: '28px', cursor: 'pointer',
-                boxShadow: '0 8px 20px rgba(16,185,129,0.3)'
-              }}>
-                {selectedSource ? 'Submit Document' : 'Upload Document'}
+              {uploadError && (
+                <div style={{ color: '#ff4d4d', fontSize: '14px', fontWeight: '600', textAlign: 'center', marginBottom: '16px' }}>
+                  {uploadError}
+                </div>
+              )}
+
+              <button 
+                onClick={() => {
+                  if (selectedType && !selectedSource) {
+                    setActiveDrawer('select_source')
+                  } else if (selectedType && selectedSource) {
+                    handleUploadDocument()
+                  } else {
+                    setActiveDrawer('select_type')
+                  }
+                }}
+                disabled={isUploading}
+                style={{
+                  width: '100%', background: isUploading ? 'rgba(255,255,255,0.15)' : 'linear-gradient(90deg, #10B981, #059669)', color: 'white',
+                  border: 'none', borderRadius: '14px', padding: '18px', fontSize: '18px', fontWeight: '800', marginBottom: '28px', cursor: isUploading ? 'not-allowed' : 'pointer',
+                  boxShadow: isUploading ? 'none' : '0 8px 20px rgba(16,185,129,0.3)'
+                }}
+              >
+                {isUploading ? 'Uploading...' : (selectedSource ? 'Submit Document' : 'Upload Document')}
               </button>
               
               <div style={{ background: 'rgba(16,185,129,0.05)', borderRadius: '14px', padding: '20px', display: 'flex', gap: '16px', alignItems: 'flex-start', border: '1px solid rgba(16,185,129,0.1)' }}>
@@ -321,18 +594,54 @@ export default function Reports() {
                       <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#FFFFFF' }}>Select family member</h2>
                     </div>
 
-                    <div style={{ background: 'rgba(16,185,129,0.1)', border: '2px solid #10B981', borderRadius: '20px', padding: '20px', display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '32px' }}>
-                      <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#10B981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '900' }}>A</div>
-                      <div style={{ fontWeight: '800', fontSize: '18px', color: '#FFFFFF' }}>Aravind Nani (You)</div>
+                    {/* User themselves option */}
+                    <div 
+                      onClick={() => { setUploadTargetProfile({ id: 'me', name: user?.full_name || 'Me' }); setActiveDrawer(null); }}
+                      style={{ 
+                        background: uploadTargetProfile.id === 'me' ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.2)', 
+                        border: uploadTargetProfile.id === 'me' ? '2px solid #10B981' : '1px solid rgba(16,185,129,0.15)', 
+                        borderRadius: '20px', padding: '20px', display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '16px', cursor: 'pointer' 
+                      }}
+                    >
+                      <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#10B981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '900' }}>
+                        {(user?.full_name || 'M').charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ fontWeight: '800', fontSize: '18px', color: '#FFFFFF' }}>{user?.full_name || 'Me'} (You)</div>
+                    </div>
+
+                    {/* Family list */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+                      {familyMembers.map(member => (
+                        <div 
+                          key={member._id}
+                          onClick={() => { setUploadTargetProfile({ id: member._id, name: member.full_name }); setActiveDrawer(null); }}
+                          style={{ 
+                            background: uploadTargetProfile.id === member._id ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.2)', 
+                            border: uploadTargetProfile.id === member._id ? '2px solid #10B981' : '1px solid rgba(16,185,129,0.15)', 
+                            borderRadius: '20px', padding: '20px', display: 'flex', alignItems: 'center', gap: '20px', cursor: 'pointer' 
+                          }}
+                        >
+                          <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '900' }}>
+                            {member.full_name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: '800', fontSize: '18px', color: '#FFFFFF' }}>{member.full_name}</div>
+                            <div style={{ fontSize: '13px', color: '#A7F3D0', marginTop: '4px' }}>{member.relationship}</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
                     <div onClick={() => setActiveDrawer('add_family')} style={{
-                      background: 'rgba(0,0,0,0.2)', border: '2px dashed rgba(16,185,129,0.4)', borderRadius: '20px', padding: '48px 24px',
-                      textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s', ':hover': { background: 'rgba(16,185,129,0.05)' }
+                      background: 'rgba(0,0,0,0.2)', border: '2px dashed rgba(16,185,129,0.4)', borderRadius: '20px', padding: '30px 24px',
+                      textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s'
                     }}>
-                      <div style={{ fontSize: '40px', marginBottom: '20px' }}>👥</div>
-                      <div style={{ fontSize: '15px', color: '#A7F3D0', maxWidth: '300px', margin: '0 auto', lineHeight: '1.6', fontWeight: '600' }}>
-                        No family members yet. Add family members to manage their health records
+                      <div style={{ fontSize: '32px', marginBottom: '12px' }}>👥</div>
+                      <div style={{ fontSize: '15px', color: '#A7F3D0', fontWeight: '600', marginBottom: '8px' }}>
+                        Add family members
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#64748B' }}>
+                        Track health records for your spouse, children or parents
                       </div>
                     </div>
                   </>
@@ -349,27 +658,33 @@ export default function Reports() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px', margin: '0 auto', background: 'rgba(16, 185, 129, 0.03)', backdropFilter: 'blur(20px)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '24px', padding: '32px' }}>
-                      <input type="text" placeholder="First Name *" style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }} />
-                      <input type="text" placeholder="Last Name *" style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }} />
-                      <input type="date" placeholder="Date of Birth *" style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }} />
-                      <select style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', appearance: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }}>
+                      <input type="text" placeholder="First Name *" value={familyFirstName} onChange={e => setFamilyFirstName(e.target.value)} style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }} />
+                      <input type="text" placeholder="Last Name *" value={familyLastName} onChange={e => setFamilyLastName(e.target.value)} style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }} />
+                      <input type="date" placeholder="Date of Birth *" value={familyDob} onChange={e => setFamilyDob(e.target.value)} style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }} />
+                      <select value={familyRelationship} onChange={e => setFamilyRelationship(e.target.value)} style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', appearance: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }}>
                         <option value="">Relationship dropdown choice *</option>
-                        <option value="spouse">Spouse</option>
-                        <option value="child">Child</option>
-                        <option value="parent">Parent</option>
+                        <option value="Spouse">Spouse</option>
+                        <option value="Child">Child</option>
+                        <option value="Parent">Parent</option>
                       </select>
-                      <select style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', appearance: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }}>
+                      <select value={familyGender} onChange={e => setFamilyGender(e.target.value)} style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', appearance: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }}>
                         <option value="">Gender dropdown selection *</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
                       </select>
-                      <input type="text" placeholder="Blood Group (Optional)" style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }} />
+                      <input type="text" placeholder="Blood Group (Optional)" value={familyBloodGroup} onChange={e => setFamilyBloodGroup(e.target.value)} style={{ width: '100%', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '14px', padding: '18px', color: 'white', outline: 'none', fontSize: '16px', fontWeight: '500', boxSizing: 'border-box' }} />
                       
-                      <button onClick={() => setActiveDrawer('family')} style={{
-                        width: '100%', background: 'linear-gradient(90deg, #10B981, #059669)', color: 'white', border: 'none', borderRadius: '14px',
-                        padding: '20px', fontSize: '18px', fontWeight: '800', marginTop: '24px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(16,185,129,0.3)'
+                      {familyError && (
+                        <div style={{ color: '#ff4d4d', fontSize: '14px', fontWeight: '600', textAlign: 'center' }}>
+                          {familyError}
+                        </div>
+                      )}
+
+                      <button onClick={handleSaveFamilyMember} disabled={savingFamily} style={{
+                        width: '100%', background: savingFamily ? 'rgba(255,255,255,0.15)' : 'linear-gradient(90deg, #10B981, #059669)', color: 'white', border: 'none', borderRadius: '14px',
+                        padding: '20px', fontSize: '18px', fontWeight: '800', marginTop: '24px', cursor: savingFamily ? 'not-allowed' : 'pointer', boxShadow: '0 8px 20px rgba(16,185,129,0.3)'
                       }}>
-                        Save Family Member
+                        {savingFamily ? 'Saving...' : 'Save Family Member'}
                       </button>
                     </div>
                   </>
@@ -388,6 +703,9 @@ export default function Reports() {
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>

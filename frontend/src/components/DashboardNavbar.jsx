@@ -3,6 +3,12 @@ import { Link, useLocation } from 'react-router-dom'
 export default function DashboardNavbar() {
   const location = useLocation()
   
+  const storedUser = localStorage.getItem('user')
+  const user = storedUser ? JSON.parse(storedUser) : null
+  const initial = user?.full_name 
+    ? user.full_name.charAt(0).toUpperCase() 
+    : (user?.email ? user.email.charAt(0).toUpperCase() : 'U')
+  
   const navItems = [
     { name: 'Dashboard', path: '/dashboard' },
     { name: 'Metrics', path: '/dashboard/metrics' },
@@ -109,7 +115,7 @@ export default function DashboardNavbar() {
             fontSize: '15px',
             textDecoration: 'none'
           }}>
-            U
+            {initial}
           </Link>
         </div>
       </div>

@@ -2,14 +2,17 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 export default function GetStarted() {
-  const [tab, setTab] = useState('whatsapp') // 'whatsapp' | 'email'
-  const [phone, setPhone] = useState('')
+  const [mode, setMode] = useState('signin') // 'signin' | 'signup'
   const [email, setEmail] = useState('')
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  
   const [sending, setSending] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // OTP Verification state variables
+  // OTP Verification state variables (used for Sign In)
   const [showOtpScreen, setShowOtpScreen] = useState(false)
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [verifying, setVerifying] = useState(false)
@@ -38,52 +41,12 @@ export default function GetStarted() {
     setTimeout(() => setIsShake(false), 500)
   }
 
-  // Handle WhatsApp or Email OTP request
+  // Handle Send OTP (Sign In) or Direct Sign Up
   const handleContinue = async () => {
     setErrorMsg('')
     setOtpError('')
 
-    if (tab === 'whatsapp') {
-      if (!name || !name.trim()) {
-        setErrorMsg('Please enter your full name')
-        return
-      }
-      if (!phone || phone.trim().length < 10) {
-        setErrorMsg('Please enter a valid phone number')
-        return
-      }
-      setSending(true)
-      try {
-        const response = await fetch('http://localhost:5000/api/auth/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: phone.trim() }),
-        })
-        const data = await response.json()
-
-        if (response.ok) {
-          setShowOtpScreen(true)
-          setCountdown(60)
-          setOtp(['', '', '', '', '', ''])
-          // Autofocus first input box
-          setTimeout(() => {
-            if (otpRefs.current[0]) otpRefs.current[0].focus()
-          }, 100)
-        } else {
-          setErrorMsg(data.error || 'Failed to send OTP. Please try again.')
-        }
-      } catch (err) {
-        console.error(err)
-        setErrorMsg('Could not connect to server. Ensure Express backend is running.')
-      } finally {
-        setSending(false)
-      }
-    } else {
-      // Validate inputs
-      if (!name || !name.trim()) {
-        setErrorMsg('Please enter your full name')
-        return
-      }
+    if (mode === 'signin') {
       if (!email || !email.trim() || !email.includes('@')) {
         setErrorMsg('Please enter a valid email address')
         return
@@ -111,14 +74,67 @@ export default function GetStarted() {
         }
       } catch (err) {
         console.error(err)
-        setErrorMsg('Could not connect to server. Ensure Express backend is running.')
+        setErrorMsg('Could not connect to server. Ensure backend is running.')
+      } finally {
+        setSending(false)
+      }
+    } else {
+      // Create Account (Sign Up) Flow
+      if (!firstName || !firstName.trim()) {
+        setErrorMsg('Please enter your first name')
+        return
+      }
+      if (!lastName || !lastName.trim()) {
+        setErrorMsg('Please enter your last name')
+        return
+      }
+      if (!email || !email.trim() || !email.includes('@')) {
+        setErrorMsg('Please enter a valid email address')
+        return
+      }
+      if (!password || password.length < 6) {
+        setErrorMsg('Password must be at least 6 characters')
+        return
+      }
+      if (password !== confirmPassword) {
+        setErrorMsg('Passwords do not match')
+        return
+      }
+
+      setSending(true)
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            email: email.trim(),
+            password: password
+          }),
+        })
+        const data = await response.json()
+
+        if (response.ok) {
+          // Store JWT token and user info
+          localStorage.setItem('token', data.token)
+          localStorage.setItem('user', JSON.stringify(data.user))
+          
+          // Direct login redirect to onboarding
+          navigate('/onboarding')
+        } else {
+          setErrorMsg(data.error || 'Failed to create account. Please try again.')
+        }
+      } catch (err) {
+        console.error(err)
+        setErrorMsg('Could not connect to server. Ensure backend is running.')
       } finally {
         setSending(false)
       }
     }
   }
 
-  // Verify OTP typed by user
+  // Verify OTP typed by user (for Sign In)
   const handleVerifyOtp = async () => {
     const otpCode = otp.join('')
     if (otpCode.length < 6) {
@@ -130,14 +146,10 @@ export default function GetStarted() {
     setVerifying(true)
     setOtpError('')
     try {
-      const payload = tab === 'whatsapp'
-        ? { phone: phone.trim(), otp: otpCode, name: name.trim() }
-        : { email: email.trim(), otp: otpCode, name: name.trim() }
-
       const response = await fetch('http://localhost:5000/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ email: email.trim(), otp: otpCode }),
       })
       const data = await response.json()
 
@@ -172,14 +184,10 @@ export default function GetStarted() {
     setIsResending(true)
     setOtpError('')
     try {
-      const payload = tab === 'whatsapp'
-        ? { phone: phone.trim() }
-        : { email: email.trim() }
-
       const response = await fetch('http://localhost:5000/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ email: email.trim() }),
       })
       const data = await response.json()
 
@@ -335,7 +343,7 @@ export default function GetStarted() {
               textAlign: 'center', fontSize: '15px', fontWeight: '600',
               color: 'white', marginBottom: '14px'
             }}>
-              {tab === 'whatsapp' ? 'Continue with WhatsApp' : 'Continue with Email'}
+              {mode === 'signin' ? 'Sign In to Your Account' : 'Create New Account'}
             </p>
 
             {/* Tab Switcher */}
@@ -348,13 +356,13 @@ export default function GetStarted() {
               border: '1px solid rgba(255,255,255,0.1)'
             }}>
               <button
-                onClick={() => { setTab('whatsapp'); setErrorMsg(''); }}
+                onClick={() => { setMode('signin'); setErrorMsg(''); }}
                 style={{
                   padding: '12px',
                   borderRadius: '10px',
                   border: 'none',
-                  background: tab === 'whatsapp'
-                    ? 'linear-gradient(135deg, #00c896, #00b4d8)'
+                  background: mode === 'signin'
+                    ? 'linear-gradient(135deg, #1e88e5, #00b8d4)'
                     : 'transparent',
                   color: 'white',
                   fontWeight: '600',
@@ -362,128 +370,141 @@ export default function GetStarted() {
                   cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                   transition: 'all 0.25s',
-                  boxShadow: tab === 'whatsapp' ? '0 4px 14px rgba(0,200,150,0.25)' : 'none'
+                  boxShadow: mode === 'signin' ? '0 4px 14px rgba(30,136,229,0.25)' : 'none'
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
-                </svg>
-                WhatsApp
+                Sign In
               </button>
               <button
-                onClick={() => { setTab('email'); setErrorMsg(''); }}
+                onClick={() => { setMode('signup'); setErrorMsg(''); }}
                 style={{
                   padding: '12px',
                   borderRadius: '10px',
                   border: 'none',
-                  background: tab === 'email'
-                    ? 'linear-gradient(135deg, #3b82f6, #00b4d8)'
+                  background: mode === 'signup'
+                    ? 'linear-gradient(135deg, #00c896, #00b4d8)'
                     : 'transparent',
-                  color: tab === 'email' ? 'white' : 'rgba(255,255,255,0.55)',
+                  color: mode === 'signup' ? 'white' : 'rgba(255,255,255,0.55)',
                   fontWeight: '600',
                   fontSize: '14px',
                   cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                   transition: 'all 0.25s',
-                  boxShadow: tab === 'email' ? '0 4px 14px rgba(59,130,246,0.25)' : 'none'
+                  boxShadow: mode === 'signup' ? '0 4px 14px rgba(0,200,150,0.25)' : 'none'
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <path d="M2 7l10 7 10-7" />
-                </svg>
-                Email
+                Sign Up
               </button>
             </div>
 
             {/* Input Fields */}
-            {tab === 'whatsapp' ? (
+            {mode === 'signin' ? (
               <div style={{ marginBottom: '14px' }}>
-                <input
-                  type="text"
-                  placeholder="Your full name"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.07)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '14px',
-                    color: 'white',
-                    fontSize: '15px',
-                    padding: '16px 18px',
-                    fontFamily: "'DM Sans', sans-serif",
-                    outline: 'none',
-                    marginBottom: '10px',
-                    boxSizing: 'border-box'
-                  }}
-                  className="auth-input"
-                />
-                <div style={{
-                  display: 'flex',
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: '14px',
-                  overflow: 'hidden',
-                  transition: 'border-color 0.2s'
-                }} className="auth-input-wrap">
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    padding: '0 14px',
-                    borderRight: '1px solid rgba(255,255,255,0.1)',
-                    color: 'white', fontSize: '14px', fontWeight: '600',
-                    whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none'
-                  }}>
-                    🇮🇳 +91
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="white" opacity="0.5">
-                      <path d="M2 3.5L5 6.5L8 3.5" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <input
-                    type="tel"
-                    placeholder="Enter your phone number"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    style={{
-                      flex: 1,
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      color: 'white',
-                      fontSize: '15px',
-                      padding: '16px 14px',
-                      fontFamily: "'DM Sans', sans-serif"
-                    }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div style={{ marginBottom: '14px' }}>
-                <input
-                  type="text"
-                  placeholder="Your full name"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(255,255,255,0.07)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '14px',
-                    color: 'white',
-                    fontSize: '15px',
-                    padding: '16px 18px',
-                    fontFamily: "'DM Sans', sans-serif",
-                    outline: 'none',
-                    marginBottom: '10px',
-                    boxSizing: 'border-box'
-                  }}
-                  className="auth-input"
-                />
                 <input
                   type="email"
                   placeholder="Enter your email address"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '14px',
+                    color: 'white',
+                    fontSize: '15px',
+                    padding: '16px 18px',
+                    fontFamily: "'DM Sans', sans-serif",
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                  className="auth-input"
+                />
+              </div>
+            ) : (
+              <div style={{ marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input
+                    type="text"
+                    placeholder="First name"
+                    value={firstName}
+                    onChange={e => setFirstName(e.target.value)}
+                    style={{
+                      width: '50%',
+                      background: 'rgba(255,255,255,0.07)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: '14px',
+                      color: 'white',
+                      fontSize: '15px',
+                      padding: '16px 18px',
+                      fontFamily: "'DM Sans', sans-serif",
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                    className="auth-input"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Last name"
+                    value={lastName}
+                    onChange={e => setLastName(e.target.value)}
+                    style={{
+                      width: '50%',
+                      background: 'rgba(255,255,255,0.07)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: '14px',
+                      color: 'white',
+                      fontSize: '15px',
+                      padding: '16px 18px',
+                      fontFamily: "'DM Sans', sans-serif",
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                    className="auth-input"
+                  />
+                </div>
+                <input
+                  type="email"
+                  placeholder="Enter your email address"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '14px',
+                    color: 'white',
+                    fontSize: '15px',
+                    padding: '16px 18px',
+                    fontFamily: "'DM Sans', sans-serif",
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                  className="auth-input"
+                />
+                <input
+                  type="password"
+                  placeholder="Create password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '14px',
+                    color: 'white',
+                    fontSize: '15px',
+                    padding: '16px 18px',
+                    fontFamily: "'DM Sans', sans-serif",
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                  className="auth-input"
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
                   style={{
                     width: '100%',
                     background: 'rgba(255,255,255,0.07)',
@@ -526,7 +547,9 @@ export default function GetStarted() {
                 borderRadius: '14px',
                 background: sending
                   ? 'rgba(255,255,255,0.15)'
-                  : 'linear-gradient(90deg, #1e88e5 0%, #00b8d4 50%, #00c896 100%)',
+                  : mode === 'signin'
+                    ? 'linear-gradient(90deg, #1e88e5 0%, #00b8d4 100%)'
+                    : 'linear-gradient(90deg, #00c896 0%, #00b8d4 100%)',
                 color: 'white',
                 fontSize: '16px',
                 fontWeight: '700',
@@ -551,11 +574,11 @@ export default function GetStarted() {
                     animation: 'spin 0.8s linear infinite',
                     display: 'inline-block'
                   }} />
-                  Sending OTP...
+                  {mode === 'signin' ? 'Sending OTP...' : 'Creating Account...'}
                 </>
               ) : (
                 <>
-                  Continue
+                  {mode === 'signin' ? 'Continue' : 'Create Account'}
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
@@ -573,13 +596,11 @@ export default function GetStarted() {
                 lineHeight: '1.25', marginBottom: '8px',
                 fontFamily: "'DM Serif Display', serif"
               }}>
-                {tab === 'whatsapp' ? 'Verify Your WhatsApp' : 'Verify Your Email'}
+                Verify Your Email
               </h1>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: '1.4' }}>
                 We've sent a 6-digit OTP code to <br />
-                <strong style={{ color: '#00c4b4' }}>
-                  {tab === 'whatsapp' ? `+91 ${phone}` : email}
-                </strong>
+                <strong style={{ color: '#00c4b4' }}>{email}</strong>
               </p>
             </div>
 
@@ -647,7 +668,7 @@ export default function GetStarted() {
                 borderRadius: '14px',
                 background: verifying
                   ? 'rgba(255,255,255,0.15)'
-                  : 'linear-gradient(90deg, #1e88e5 0%, #00b8d4 50%, #00c896 100%)',
+                  : 'linear-gradient(90deg, #1e88e5 0%, #00b8d4 100%)',
                 color: 'white',
                 fontSize: '16px',
                 fontWeight: '700',
@@ -723,7 +744,7 @@ export default function GetStarted() {
                 }}
                 className="edit-email-btn"
               >
-                {tab === 'whatsapp' ? '← Back to edit name & phone' : '← Back to edit name & email'}
+                ← Back to edit email
               </button>
             </div>
           </div>
@@ -838,4 +859,3 @@ export default function GetStarted() {
     </div>
   )
 }
-

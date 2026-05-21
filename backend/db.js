@@ -1,4 +1,6 @@
 import { MongoClient } from 'mongodb';
+import dns from 'dns';
+
 
 // Mock database classes for offline/sandboxed development fallback
 class MockCollection {
@@ -92,6 +94,11 @@ export async function connectToDatabase() {
   if (uri) {
     try {
       console.log('[DATABASE] Connecting to configured MongoDB Atlas cluster...');
+      try {
+        dns.setServers(['8.8.8.8', '1.1.1.1']);
+      } catch (dnsErr) {
+        console.warn('[DATABASE] Custom DNS configuration failed, proceeding with system default:', dnsErr.message);
+      }
       client = new MongoClient(uri, { serverSelectionTimeoutMS: 3000 });
       await client.connect();
       db = client.db(dbName);
