@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import FAQ from '../components/FAQ'
 import Testimonials from '../components/Testimonials'
@@ -5,6 +6,49 @@ import GetStartedSection from '../components/DownloadSection'
 import Footer from '../components/Footer'
 
 export default function Home() {
+  const [activeSecTab, setActiveSecTab] = useState('compliance')
+
+  const secTabs = [
+    {
+      id: 'compliance',
+      label: 'Global Compliance',
+      subtitle: 'Adhering to international and domestic digital healthcare regulations.',
+      icon: '🛡️',
+      items: [
+        { title: 'HIPAA Compliant', icon: '🏥', desc: 'Strict healthcare privacy rules applied to all data handling, storage, and transfers.' },
+        { title: 'GDPR Protection', icon: '🇪🇺', desc: 'European data privacy regulations for robust international user data protection.' },
+        { title: 'NHA / ABHA Standards', icon: '🇮🇳', desc: "India's National Health Authority & Ayushman Bharat Health Account integration for an India-first secure platform." },
+        { title: 'ISO 27001 Guideline', icon: '📋', desc: 'Adherence to global information security management systems managed by our engineering group.' },
+        { title: 'CCPA Compliance', icon: '🇺🇸', desc: 'California Consumer Privacy Act compliance providing full data rights for US-based users.' },
+        { title: 'Infrastructure & Network', icon: '🌐', desc: 'Enterprise-grade firewall protection, network isolation, and strict server hardening.' }
+      ]
+    },
+    {
+      id: 'sharing',
+      label: 'Consent & Sharing',
+      subtitle: 'Ensuring your records are only visible to whom you choose, when you choose.',
+      icon: '🔗',
+      items: [
+        { title: 'Consent-Based Sharing', icon: '🤝', desc: 'Records shared only with explicit user permission; absolutely no third-party data sharing without consent.' },
+        { title: 'Expiring Share Links', icon: '⏳', desc: 'One-time secure links for sharing reports with doctors or family that automatically expire after use.' },
+        { title: 'OAuth 2.0 & JWT Access', icon: '🔑', desc: 'Token-based API authentication and state-of-the-art secure API access controls.' },
+        { title: 'User-Controlled Access', icon: '👤', desc: 'You retain complete ownership: only you decide who can view, download, or edit your health records.' }
+      ]
+    },
+    {
+      id: 'appsec',
+      label: 'App & Device Security',
+      subtitle: 'Advanced client-side and server-side runtime threat prevention.',
+      icon: '📱',
+      items: [
+        { title: 'Code Obfuscation & RASP', icon: '🛡️', desc: 'Runtime Application Self-Protection to detect tampering, reverse engineering, debugging, or rooted-device execution.' },
+        { title: 'API Rate Limiting & Validation', icon: '🚦', desc: 'Strict backend rate limiters and payload input validations guarding against injection attacks and service abuse.' },
+        { title: 'Enterprise Encryption', icon: '🔒', desc: 'Health data stays fully encrypted at rest on your device using hardware-backed security modules.' },
+        { title: 'AI/ML Threat Detection', icon: '🤖', desc: 'Real-time anomaly detection and machine learning models to identify and block unusual access patterns instantly.' }
+      ]
+    }
+  ]
+
   return (
     <div style={{ position: 'relative' }}>
       {/* Hero Section */}
@@ -329,43 +373,76 @@ export default function Home() {
       {/* Security & Compliance Section */}
       <section id="compliance" style={{ background: 'var(--dark)', color: 'white', padding: '100px 0' }}>
         <div className="container">
-          <div style={{ textAlign: 'center', marginBottom: '80px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
             <div className="section-label" style={{ color: 'var(--accent2)' }}>Security & Compliance</div>
-            <h2 className="section-title" style={{ color: 'white', fontSize: 'clamp(28px, 4vw, 44px)' }}>
+            <h2 className="section-title" style={{ color: 'white', fontSize: 'clamp(28px, 4vw, 44px)', marginBottom: '16px' }}>
               Your Health Data is 100% Secure
             </h2>
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '17px', maxWidth: '700px', margin: '0 auto', lineHeight: '1.7' }}>
-              We use bank-level security to protect your medical information. Your health records are encrypted, private, and always under your complete control.
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '17px', maxWidth: '700px', margin: '0 auto 24px', lineHeight: '1.7' }}>
+              We use bank-grade security to protect your medical information. Your health records are encrypted, private, and always under your complete control.
+            </p>
+          </div>
+
+          {/* Interactive Tab Selector */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '12px',
+            marginBottom: '32px',
+            flexWrap: 'wrap'
+          }}>
+            {secTabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSecTab(tab.id)}
+                style={{
+                  background: activeSecTab === tab.id ? 'var(--primary)' : 'rgba(255, 255, 255, 0.04)',
+                  color: '#FFFFFF',
+                  border: activeSecTab === tab.id ? 'none' : '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  padding: '12px 24px',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'var(--transition)'
+                }}
+              >
+                <span>{tab.icon}</span> {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+            <p style={{ color: 'var(--accent2)', fontSize: '16px', fontWeight: '600', maxWidth: '600px', margin: '0 auto' }}>
+              {secTabs.find(t => t.id === activeSecTab).subtitle}
             </p>
           </div>
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
             gap: '24px',
             marginBottom: '60px'
           }}>
-            {[
-              { title: 'Advanced Encryption', icon: '🔐', desc: 'All your medical reports and personal health data are encrypted using AES-256 encryption, the same standard used by banks and government agencies.' },
-              { title: 'HIPAA Compliant', icon: '📄', desc: 'Our platform follows strict healthcare privacy standards (HIPAA) ensuring your medical information is handled with the highest level of confidentiality.' },
-              { title: 'You Control Access', icon: '🔑', desc: 'Only you decide who can see your health records. Share specific reports with doctors or family members with one-time secure links that expire automatically.' },
-              { title: 'Secure Cloud Storage', icon: '☁️', desc: 'Your health records are safely stored in secure cloud servers with multiple backups, so you\'ll never lose important medical information again.' }
-            ].map((card, i) => (
+            {secTabs.find(t => t.id === activeSecTab).items.map((item, i) => (
               <div key={i} style={{
                 background: 'rgba(255,255,255,0.03)',
                 border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: '20px',
-                padding: '40px',
+                padding: '36px',
                 transition: 'var(--transition)'
               }} className="security-card">
                 <div style={{
                   width: '48px', height: '48px', borderRadius: '12px',
                   background: 'rgba(0,196,140,0.1)', display: 'flex',
-                  alignItems: 'center', justify_content: 'center',
+                  alignItems: 'center', justifyContent: 'center',
                   fontSize: '24px', marginBottom: '24px'
-                }}>{card.icon}</div>
-                <h3 style={{ fontSize: '20px', color: 'white', marginBottom: '16px', fontWeight: '600' }}>{card.title}</h3>
-                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px', lineHeight: '1.7' }}>{card.desc}</p>
+                }}>{item.icon}</div>
+                <h3 style={{ fontSize: '19px', color: 'white', marginBottom: '14px', fontWeight: '600' }}>{item.title}</h3>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px', lineHeight: '1.7' }}>{item.desc}</p>
               </div>
             ))}
           </div>
@@ -383,8 +460,9 @@ export default function Home() {
               { label: 'HIPAA', sub: 'Compliant' },
               { label: 'NHA / ABHA', sub: 'Integrated' },
               { label: 'GDPR', sub: 'Compliant' },
-              { label: 'AES-256', sub: 'Encryption' },
-              { label: 'ISO 27001', sub: 'Standards' }
+              { label: 'ISO 27001', sub: 'Standards' },
+              { label: 'CCPA', sub: 'Compliant' },
+              { label: 'AES-256', sub: 'Encryption' }
             ].map((badge, i) => (
               <div key={i} style={{
                 background: 'rgba(255,255,255,0.03)',
