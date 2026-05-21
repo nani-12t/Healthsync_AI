@@ -42,7 +42,7 @@ export default function DashboardHome() {
         }}>
           A
         </div>
-        <h1 style={{ fontSize: '28px', fontWeight: '900', margin: 0, letterSpacing: '1px' }}>Aravind</h1>
+        <h1 style={{ fontSize: '28px', fontWeight: '900', margin: 0, letterSpacing: '1px', color: '#FFFFFF' }}>Aravind</h1>
       </div>
 
       {/* Desktop Grid Layout */}
