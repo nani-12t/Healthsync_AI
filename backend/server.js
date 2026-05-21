@@ -10,6 +10,9 @@ dotenv.config()
 
 const app = express()
 
+// In-memory OTP cache to avoid database persistence
+const otpCache = new Map();
+
 app.use(cors())
 app.use(express.json())
 
@@ -136,12 +139,8 @@ app.post('/api/auth/send-otp', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
 
-    // Store OTP in database, updating existing record if any
-    await db.collection('otps').updateOne(
-      { email: normalizedEmail },
-      { $set: { otp, expiresAt } },
-      { upsert: true }
-    );
+    // Store OTP in memory cache
+    otpCache.set(normalizedEmail, { otp, expiresAt });
 
     // Send the email (handled asynchronously to not block response)
     sendOTPEmail(normalizedEmail, otp).catch(err => {
@@ -167,9 +166,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   const inputOtp = otp.trim();
 
   try {
-    const db = getDb();
-    
-    const otpRecord = await db.collection('otps').findOne({ email: normalizedEmail });
+    const otpRecord = otpCache.get(normalizedEmail);
 
     if (!otpRecord) {
       return res.status(400).json({ error: 'No OTP requested for this email' });
@@ -180,12 +177,14 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     }
 
     if (otpRecord.expiresAt < new Date()) {
+      otpCache.delete(normalizedEmail);
       return res.status(400).json({ error: 'OTP has expired' });
     }
 
-    // OTP is valid. Delete it so it cannot be reused
-    await db.collection('otps').deleteOne({ email: normalizedEmail });
+    // OTP is valid. Delete it from memory so it cannot be reused
+    otpCache.delete(normalizedEmail);
 
+    const db = getDb();
     // Fetch user details
     const user = await db.collection('users').findOne({ email: normalizedEmail });
     if (!user) {
@@ -435,7 +434,19 @@ app.post('/api/metrics', requireAuth, async (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 connectToDatabase()
-  .then(() => {
+  .then(async () => {
+    // Drop existing 'otps' collection if it exists in the database
+    try {
+      const db = getDb();
+      const collections = await db.listCollections({ name: 'otps' }).toArray();
+      if (collections.length > 0) {
+        await db.collection('otps').drop();
+        console.log('[DATABASE] Dropped existing "otps" collection from database.');
+      }
+    } catch (dropErr) {
+      console.warn('[DATABASE] Failed to drop "otps" collection:', dropErr.message);
+    }
+
     app.listen(PORT, () => {
       console.log(`Server running on ${PORT}`);
     });
