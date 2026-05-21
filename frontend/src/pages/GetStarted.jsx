@@ -44,16 +44,40 @@ export default function GetStarted() {
     setOtpError('')
 
     if (tab === 'whatsapp') {
+      if (!name || !name.trim()) {
+        setErrorMsg('Please enter your full name')
+        return
+      }
       if (!phone || phone.trim().length < 10) {
         setErrorMsg('Please enter a valid phone number')
         return
       }
       setSending(true)
-      // WhatsApp mock behaviour
-      setTimeout(() => {
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: phone.trim() }),
+        })
+        const data = await response.json()
+
+        if (response.ok) {
+          setShowOtpScreen(true)
+          setCountdown(60)
+          setOtp(['', '', '', '', '', ''])
+          // Autofocus first input box
+          setTimeout(() => {
+            if (otpRefs.current[0]) otpRefs.current[0].focus()
+          }, 100)
+        } else {
+          setErrorMsg(data.error || 'Failed to send OTP. Please try again.')
+        }
+      } catch (err) {
+        console.error(err)
+        setErrorMsg('Could not connect to server. Ensure Express backend is running.')
+      } finally {
         setSending(false)
-        navigate('/onboarding')
-      }, 1800)
+      }
     } else {
       // Validate inputs
       if (!name || !name.trim()) {
@@ -106,14 +130,14 @@ export default function GetStarted() {
     setVerifying(true)
     setOtpError('')
     try {
+      const payload = tab === 'whatsapp'
+        ? { phone: phone.trim(), otp: otpCode, name: name.trim() }
+        : { email: email.trim(), otp: otpCode, name: name.trim() }
+
       const response = await fetch('http://localhost:5000/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim(),
-          otp: otpCode,
-          name: name.trim()
-        }),
+        body: JSON.stringify(payload),
       })
       const data = await response.json()
 
@@ -148,10 +172,14 @@ export default function GetStarted() {
     setIsResending(true)
     setOtpError('')
     try {
+      const payload = tab === 'whatsapp'
+        ? { phone: phone.trim() }
+        : { email: email.trim() }
+
       const response = await fetch('http://localhost:5000/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify(payload),
       })
       const data = await response.json()
 
@@ -370,43 +398,64 @@ export default function GetStarted() {
 
             {/* Input Fields */}
             {tab === 'whatsapp' ? (
-              <div style={{
-                display: 'flex',
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: '14px',
-                overflow: 'hidden',
-                marginBottom: '14px',
-                transition: 'border-color 0.2s'
-              }} className="auth-input-wrap">
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '0 14px',
-                  borderRight: '1px solid rgba(255,255,255,0.1)',
-                  color: 'white', fontSize: '14px', fontWeight: '600',
-                  whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none'
-                }}>
-                  🇮🇳 +91
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="white" opacity="0.5">
-                    <path d="M2 3.5L5 6.5L8 3.5" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                  </svg>
-                </div>
+              <div style={{ marginBottom: '14px' }}>
                 <input
-                  type="tel"
-                  placeholder="Enter your phone number"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
+                  type="text"
+                  placeholder="Your full name"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
                   style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    outline: 'none',
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '14px',
                     color: 'white',
                     fontSize: '15px',
-                    padding: '16px 14px',
-                    fontFamily: "'DM Sans', sans-serif"
+                    padding: '16px 18px',
+                    fontFamily: "'DM Sans', sans-serif",
+                    outline: 'none',
+                    marginBottom: '10px',
+                    boxSizing: 'border-box'
                   }}
+                  className="auth-input"
                 />
+                <div style={{
+                  display: 'flex',
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  transition: 'border-color 0.2s'
+                }} className="auth-input-wrap">
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    padding: '0 14px',
+                    borderRight: '1px solid rgba(255,255,255,0.1)',
+                    color: 'white', fontSize: '14px', fontWeight: '600',
+                    whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none'
+                  }}>
+                    🇮🇳 +91
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="white" opacity="0.5">
+                      <path d="M2 3.5L5 6.5L8 3.5" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <input
+                    type="tel"
+                    placeholder="Enter your phone number"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    style={{
+                      flex: 1,
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: 'white',
+                      fontSize: '15px',
+                      padding: '16px 14px',
+                      fontFamily: "'DM Sans', sans-serif"
+                    }}
+                  />
+                </div>
               </div>
             ) : (
               <div style={{ marginBottom: '14px' }}>
@@ -524,11 +573,13 @@ export default function GetStarted() {
                 lineHeight: '1.25', marginBottom: '8px',
                 fontFamily: "'DM Serif Display', serif"
               }}>
-                Verify Your Email
+                {tab === 'whatsapp' ? 'Verify Your WhatsApp' : 'Verify Your Email'}
               </h1>
               <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: '1.4' }}>
                 We've sent a 6-digit OTP code to <br />
-                <strong style={{ color: '#00c4b4' }}>{email}</strong>
+                <strong style={{ color: '#00c4b4' }}>
+                  {tab === 'whatsapp' ? `+91 ${phone}` : email}
+                </strong>
               </p>
             </div>
 
@@ -672,7 +723,7 @@ export default function GetStarted() {
                 }}
                 className="edit-email-btn"
               >
-                ← Back to edit name & email
+                {tab === 'whatsapp' ? '← Back to edit name & phone' : '← Back to edit name & email'}
               </button>
             </div>
           </div>

@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { connectToDatabase, getDb } from './db.js'
 import { sendOTPEmail } from './emailService.js'
+import { sendOTPWhatsApp } from './whatsappService.js'
 
 dotenv.config()
 
@@ -19,12 +20,10 @@ app.get('/', (req, res) => {
 
 // Route to generate and send OTP
 app.post('/api/auth/send-otp', async (req, res) => {
-  const { email } = req.body;
-  if (!email || !email.trim()) {
-    return res.status(400).json({ error: 'Email is required' });
+  const { email, phone } = req.body;
+  if ((!email || !email.trim()) && (!phone || !phone.trim())) {
+    return res.status(400).json({ error: 'Email or Phone is required' });
   }
-
-  const normalizedEmail = email.trim().toLowerCase();
 
   try {
     const db = getDb();
@@ -33,17 +32,37 @@ app.post('/api/auth/send-otp', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
 
-    // Store OTP in database, updating existing record if any
-    await db.collection('otps').updateOne(
-      { email: normalizedEmail },
-      { $set: { otp, expiresAt } },
-      { upsert: true }
-    );
+    if (email) {
+      const normalizedEmail = email.trim().toLowerCase();
 
-    // Send the email (handled asynchronously to not block response)
-    sendOTPEmail(normalizedEmail, otp).catch(err => {
-      console.error(`Error sending email to ${normalizedEmail}:`, err);
-    });
+      // Store OTP in database, updating existing record if any
+      await db.collection('otps').updateOne(
+        { email: normalizedEmail },
+        { $set: { otp, expiresAt } },
+        { upsert: true }
+      );
+
+      // Send the email (handled asynchronously to not block response)
+      sendOTPEmail(normalizedEmail, otp).catch(err => {
+        console.error(`Error sending email to ${normalizedEmail}:`, err);
+      });
+    } else {
+      // Normalize phone number
+      const normalizedPhone = phone.replace(/\D/g, '');
+      const finalPhone = normalizedPhone.length === 10 ? '91' + normalizedPhone : normalizedPhone;
+
+      // Store OTP in database under the phone number
+      await db.collection('otps').updateOne(
+        { phone: finalPhone },
+        { $set: { otp, expiresAt } },
+        { upsert: true }
+      );
+
+      // Send WhatsApp message (handled asynchronously)
+      sendOTPWhatsApp(phone, otp).catch(err => {
+        console.error(`Error sending WhatsApp to ${phone}:`, err);
+      });
+    }
 
     res.status(200).json({ message: 'OTP sent successfully' });
   } catch (error) {
@@ -54,23 +73,31 @@ app.post('/api/auth/send-otp', async (req, res) => {
 
 // Route to verify OTP and return access token
 app.post('/api/auth/verify-otp', async (req, res) => {
-  const { email, otp, name } = req.body;
+  const { email, phone, otp, name } = req.body;
   
-  if (!email || !otp) {
-    return res.status(400).json({ error: 'Email and OTP are required' });
+  if ((!email && !phone) || !otp) {
+    return res.status(400).json({ error: 'Email/Phone and OTP are required' });
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
   const inputOtp = otp.trim();
 
   try {
     const db = getDb();
+    let otpRecord;
+    let normalizedEmail = null;
+    let finalPhone = null;
 
-    // Find the stored OTP record
-    const otpRecord = await db.collection('otps').findOne({ email: normalizedEmail });
+    if (email) {
+      normalizedEmail = email.trim().toLowerCase();
+      otpRecord = await db.collection('otps').findOne({ email: normalizedEmail });
+    } else {
+      const normalizedPhone = phone.replace(/\D/g, '');
+      finalPhone = normalizedPhone.length === 10 ? '91' + normalizedPhone : normalizedPhone;
+      otpRecord = await db.collection('otps').findOne({ phone: finalPhone });
+    }
 
     if (!otpRecord) {
-      return res.status(400).json({ error: 'No OTP requested for this email' });
+      return res.status(400).json({ error: `No OTP requested for this ${email ? 'email' : 'phone number'}` });
     }
 
     if (otpRecord.otp !== inputOtp) {
@@ -82,10 +109,20 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     }
 
     // OTP is valid. Delete it so it cannot be reused
-    await db.collection('otps').deleteOne({ email: normalizedEmail });
+    if (email) {
+      await db.collection('otps').deleteOne({ email: normalizedEmail });
+    } else {
+      await db.collection('otps').deleteOne({ phone: finalPhone });
+    }
 
     // Check if the user already exists in the "users" collection
-    let user = await db.collection('users').findOne({ email: normalizedEmail });
+    let user;
+    if (email) {
+      user = await db.collection('users').findOne({ email: normalizedEmail });
+    } else {
+      user = await db.collection('users').findOne({ phone: finalPhone });
+    }
+
     let isFirstTime = false;
 
     if (!user) {
@@ -96,7 +133,6 @@ app.post('/api/auth/verify-otp', async (req, res) => {
       const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
       const newUser = {
-        email: normalizedEmail,
         hashed_password: hashedPassword,
         full_name: name ? name.trim() : null,
         is_active: true,
@@ -105,17 +141,23 @@ app.post('/api/auth/verify-otp', async (req, res) => {
         allowed_access_list: []
       };
 
+      if (email) {
+        newUser.email = normalizedEmail;
+      } else {
+        newUser.phone = finalPhone;
+      }
+
       const result = await db.collection('users').insertOne(newUser);
       user = { _id: result.insertedId, ...newUser };
-      console.log(`[AUTH] Registered new user: ${normalizedEmail}`);
+      console.log(`[AUTH] Registered new user: ${email ? normalizedEmail : finalPhone}`);
     } else {
-      console.log(`[AUTH] Logged in existing user: ${normalizedEmail}`);
+      console.log(`[AUTH] Logged in existing user: ${email ? normalizedEmail : finalPhone}`);
     }
 
     // Generate JWT access token (matching python_api/core/security.py details)
     const secretKey = process.env.SECRET_KEY || 'supersecretkey_change_in_production';
     const token = jwt.sign(
-      { sub: normalizedEmail },
+      { sub: email ? normalizedEmail : finalPhone },
       secretKey,
       { algorithm: 'HS256', expiresIn: '30m' } // HS256 matches FastAPI settings
     );
@@ -125,7 +167,8 @@ app.post('/api/auth/verify-otp', async (req, res) => {
       token,
       isFirstTime,
       user: {
-        email: user.email,
+        email: user.email || null,
+        phone: user.phone || null,
         full_name: user.full_name,
         role: user.role,
         is_active: user.is_active
